@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.andreireanu.minimal-monitor",
   "name": "Minimal Monitor",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "author": "andrei",
   "license": "MIT",
   "description": "CPU load, temperature, memory and every fan on the machine, one compact read-out each, straight in the bar. Reads /proc and /sys/class/hwmon directly — no lm_sensors, no vendor lock-in.",

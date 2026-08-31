@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.Commons
 import qs.Ui
 import "Model.js" as Model
 
@@ -29,6 +30,11 @@ BarWidget {
   property string iconGap: " "
   property string metricGap: " "
 
+  // The bar clips nothing and pushes nothing aside, so the widget caps itself.
+  // Tunable per screen from shell.json, the same way omarchy.active-window does.
+  // This is the text width; the button adds its own padding around it.
+  readonly property int maxLabelWidth: Number(setting("maxWidth", 300))
+
   readonly property var visibleMetrics: ({
     cpu: root.showCpu,
     temp: root.showTemp,
@@ -56,7 +62,10 @@ BarWidget {
   implicitWidth: button.implicitWidth
   implicitHeight: button.implicitHeight
 
-  onBarChanged: injectPanel()
+  onBarChanged: {
+    injectPanel()
+    pickLabel()   // the bar carries the font the label is measured in
+  }
 
   // These numbers move slowly. Poll lazily until the panel is open.
   readonly property int pollSeconds: opened ? 1 : 3
@@ -94,11 +103,44 @@ BarWidget {
     }
   }
 
+  // Measures a candidate read-out in the bar's own font, so the choice below
+  // is made against real drawn width rather than a character count.
+  TextMetrics {
+    id: metrics
+    // Same font the bar draws with, so the measurement matches what appears.
+    font.family: root.bar ? root.bar.fontFamily : Style.font.family
+    font.pixelSize: Style.font.body
+  }
+
+  // The fullest read-out that fits. Whole metrics are dropped rather than the
+  // text being elided mid-glyph; the panel still lists every reading.
+  //
+  // Deliberately a function rather than a binding: choosing needs to write
+  // metrics.text and read metrics.width, and a binding that does both loops.
+  property string barLabel: ""
+
+  function pickLabel() {
+    const options = Model.candidates(root.reading, root.visibleMetrics)
+    for (var i = 0; i < options.length; i++) {
+      metrics.text = options[i]
+      if (metrics.width <= root.maxLabelWidth) {
+        root.barLabel = options[i]
+        return
+      }
+    }
+    root.barLabel = options[options.length - 1]
+  }
+
+  onReadingChanged: pickLabel()
+  onVisibleMetricsChanged: pickLabel()
+  onMaxLabelWidthChanged: pickLabel()
+  Component.onCompleted: pickLabel()
+
   WidgetButton {
     id: button
     anchors.fill: parent
     bar: root.bar
-    text: Model.barText(root.reading, root.visibleMetrics)
+    text: root.barLabel
     tooltipText: Model.tooltip(root.reading)
     onPressed: function(buttonCode) {
       if (buttonCode === Qt.LeftButton) root.toggle()

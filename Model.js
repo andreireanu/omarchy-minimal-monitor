@@ -89,6 +89,45 @@ function barText(reading, show) {
   return out
 }
 
+// The bar has no collision handling at all: the clock is pinned to the screen
+// midpoint and the side sections are pinned to the edges, so a wide read-out
+// simply paints over the clock. The widget therefore has to fit itself.
+//
+// Rather than eliding mid-glyph, drop whole metrics. These are the read-outs
+// from fullest to shortest; the caller picks the first one that fits, and the
+// panel always lists everything regardless.
+function candidates(reading, show) {
+  var ladder = [
+    { cpu: 1, temp: 1, mem: 1, fans: 1, rpmUnit: 1 },
+    { cpu: 1, temp: 1, mem: 1, fans: 1, rpmUnit: 0 },
+    { cpu: 1, temp: 1, mem: 1, fans: 0, rpmUnit: 0 },
+    { cpu: 1, temp: 1, mem: 0, fans: 0, rpmUnit: 0 },
+    { cpu: 1, temp: 0, mem: 0, fans: 0, rpmUnit: 0 }
+  ]
+
+  var out = []
+  var seen = {}
+  for (var i = 0; i < ladder.length; i++) {
+    var step = ladder[i]
+    var text = barText(reading, {
+      // A metric the user switched off never comes back just because there
+      // is room for it.
+      cpu: show.cpu && step.cpu,
+      temp: show.temp && step.temp,
+      mem: show.mem && step.mem,
+      fans: show.fans && step.fans,
+      rpmUnit: show.rpmUnit && step.rpmUnit,
+      iconGap: show.iconGap,
+      metricGap: show.metricGap
+    })
+    if (!seen[text]) {
+      seen[text] = true
+      out.push(text)
+    }
+  }
+  return out
+}
+
 function rows(reading) {
   if (!reading) return []
   var out = []
