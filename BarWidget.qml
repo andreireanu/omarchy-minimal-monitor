@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -32,8 +33,13 @@ BarWidget {
 
   // The bar clips nothing and pushes nothing aside, so the widget caps itself.
   // Tunable per screen from shell.json, the same way omarchy.active-window does.
-  // This is the text width; the button adds its own padding around it.
-  readonly property int maxLabelWidth: Number(setting("maxWidth", 300))
+  // Upper bound, so the read-out cannot sprawl across a very wide screen.
+  readonly property int maxLabelWidth: Number(setting("maxWidth", 420))
+
+  // Room to leave around the centred clock. The bar exposes no way to ask how
+  // wide the centre section is, so this is the one number that has to be
+  // guessed; everything else below is measured.
+  readonly property int centerReserve: Number(setting("centerReserve", 130))
 
   readonly property var visibleMetrics: ({
     cpu: root.showCpu,
@@ -119,11 +125,37 @@ BarWidget {
   // metrics.text and read metrics.width, and a binding that does both loops.
   property string barLabel: ""
 
+  // How much width the read-out may take before it reaches the clock.
+  //
+  // The bar anchors its side sections to the screen edges and pins the clock to
+  // the midpoint, so the edge of this widget that faces away from the centre
+  // stays put no matter how the label grows or shrinks - the widgets beyond it
+  // decide where it sits. Measuring from there is stable and needs no loop.
+  function availableWidth() {
+    const windowWidth = root.Window.width
+    if (!windowWidth || root.width <= 0) return root.maxLabelWidth
+
+    const origin = root.mapToItem(null, 0, 0)
+    if (!origin) return root.maxLabelWidth
+
+    const middle = windowWidth / 2
+    const onTheRight = origin.x + root.width / 2 > middle
+
+    // Distance from the outer edge inwards, less the space kept for the clock.
+    const room = onTheRight
+      ? (origin.x + root.width) - middle - root.centerReserve
+      : middle - root.centerReserve - origin.x
+
+    return Math.max(40, Math.min(root.maxLabelWidth, room))
+  }
+
   function pickLabel() {
     const options = Model.candidates(root.reading, root.visibleMetrics)
+    const budget = availableWidth()
+
     for (var i = 0; i < options.length; i++) {
       metrics.text = options[i]
-      if (metrics.width <= root.maxLabelWidth) {
+      if (metrics.width <= budget) {
         root.barLabel = options[i]
         return
       }
@@ -135,6 +167,15 @@ BarWidget {
   onVisibleMetricsChanged: pickLabel()
   onMaxLabelWidthChanged: pickLabel()
   Component.onCompleted: pickLabel()
+
+  // At startup the widget has no geometry yet, so the first choice is made
+  // blind. Re-choose once the bar has laid itself out.
+  Timer {
+    interval: 400
+    repeat: false
+    running: true
+    onTriggered: root.pickLabel()
+  }
 
   WidgetButton {
     id: button
