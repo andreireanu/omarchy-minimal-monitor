@@ -81,13 +81,32 @@ cpu_temp() {
   else echo "null"; fi
 }
 
+# True when the embedded controller reports a fan of its own.
+ec_reports_fan() {
+  local chip input
+  for chip in "$hwmon_root"/hwmon*; do
+    [ -d "$chip" ] || continue
+    [ "$(cat "$chip/name" 2>/dev/null)" = "cros_ec" ] || continue
+    for input in "$chip"/fan[0-9]*_input; do
+      [ -r "$input" ] && return 0
+    done
+  done
+  return 1
+}
+
+# Every fan on the machine, each listed once. acpi_fan can be a second view of
+# a fan the embedded controller already reports -- a Framework laptop shows its
+# one fan under both acpi_fan and cros_ec -- so the ACPI copy is dropped when
+# cros_ec is present. Any other chip reports its own fans, so those are kept.
 fans_json() {
-  local first=1 chip name input rpm base index label
+  local first=1 chip name input rpm base index label skip_acpi=0
+  if ec_reports_fan; then skip_acpi=1; fi
   printf '['
   for chip in "$hwmon_root"/hwmon*; do
     [ -d "$chip" ] || continue
     name=$(cat "$chip/name" 2>/dev/null) || continue
     [ -n "$name" ] || continue
+    if [ "$name" = "acpi_fan" ] && [ "$skip_acpi" -eq 1 ]; then continue; fi
 
     for input in "$chip"/fan[0-9]*_input; do
       [ -r "$input" ] || continue

@@ -14,7 +14,8 @@ shot. CPU and memory are live.*
 
 Most bar monitors either hide the fans behind a popup or only understand one
 vendor's Super I/O chip. This one enumerates `/sys/class/hwmon` and shows every
-fan it finds, on the bar itself, whatever the hardware is.
+fan it finds, on the bar itself, whatever the hardware is — each fan once, even
+when two drivers report the same one.
 
 ## What it shows
 
@@ -24,6 +25,7 @@ The read-out adapts to the machine — nothing is hard-coded:
 |---|---|
 | Laptop with two fans | CPU, temperature, memory, both fans |
 | Laptop with one fan | CPU, temperature, memory, one fan |
+| Laptop whose fan two drivers report | CPU, temperature, memory, one fan |
 | Fanless laptop | CPU, temperature, memory |
 | No sensors at all | CPU, memory |
 
