@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Print a font family for the harness to draw with.
+# `fc-match` silently falls back to a font with no Nerd Font glyphs, so the
+# installed families are searched by name instead.
+set -u
+
+families=$(fc-list : family 2>/dev/null | tr ',' '\n' | sed 's/^ *//; s/ *$//' | sort -u)
+
+have() { printf '%s\n' "$families" | grep -qxF "$1"; }
+
+# Omarchy's own bar font first, then the usual monospace Nerd Fonts.
+for want in \
+  "CaskaydiaMono Nerd Font" \
+  "CaskaydiaCove Nerd Font" \
+  "JetBrainsMono Nerd Font" \
+  "FiraCode Nerd Font" \
+  "Hack Nerd Font"
+do
+  if have "$want"; then echo "$want"; exit 0; fi
+done
+
+# Any monospace Nerd Font will still carry the glyphs.
+pick=$(printf '%s\n' "$families" | grep "Nerd Font" | grep -i "mono" | head -1)
+[ -n "$pick" ] || pick=$(printf '%s\n' "$families" | grep "Nerd Font" | head -1)
+[ -n "$pick" ] || pick="monospace"
+echo "$pick"
