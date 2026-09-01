@@ -99,13 +99,14 @@ MONITOR_HWMON_ROOT=/tmp/fake-hwmon ./scripts/sysread
 ```
 
 `tests/fake-hwmon` does exactly that for eight shapes of hardware, including a
-Framework laptop whose single fan is reported by two drivers at once. It runs
-anywhere, with or without a checkout:
+Framework laptop whose single fan is reported by two drivers at once:
 
 ```bash
 ./tests/fake-hwmon
-curl -fsSL https://raw.githubusercontent.com/andreireanu/omarchy-minimal-monitor/main/tests/fake-hwmon | bash
 ```
+
+It looks for the collector in this checkout, then in an installed plugin, so it
+can also be run from a clone on a machine where the plugin is already set up.
 
 ## A note on reloading
 

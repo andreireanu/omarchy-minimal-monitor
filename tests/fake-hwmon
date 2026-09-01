@@ -2,11 +2,12 @@
 # Run the collector against invented /sys/class/hwmon trees, so shapes of
 # hardware nobody has to hand can still be checked.
 #
-# From a clone:   ./tests/fake-hwmon
-# From anywhere:  curl -fsSL https://raw.githubusercontent.com/andreireanu/omarchy-minimal-monitor/main/tests/fake-hwmon | bash
+# Run it from a clone: ./tests/fake-hwmon
 set -u
 
-# Prefer the copy in this checkout, else the installed plugin, else fetch one.
+# Prefer the copy in this checkout, else the one already installed. Nothing is
+# downloaded: a test that fetches and runs code from the network is exactly the
+# shape a plugin should not have.
 id="io.github.andreireanu.minimal-monitor"
 for candidate in \
   "$(dirname "$0")/../scripts/sysread" \
@@ -17,11 +18,8 @@ do
 done
 
 if [ -z "${reader:-}" ]; then
-  reader=$(mktemp)
-  curl -fsSL -o "$reader" \
-    "https://raw.githubusercontent.com/andreireanu/omarchy-minimal-monitor/main/scripts/sysread" || {
-      echo "could not find or fetch scripts/sysread"; exit 1; }
-  chmod +x "$reader"
+  echo "could not find scripts/sysread - run this from a clone of the repository"
+  exit 1
 fi
 
 echo "reader: $reader"
