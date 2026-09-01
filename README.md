@@ -98,6 +98,15 @@ you do not have — a fanless laptop, or a desktop with four fans:
 MONITOR_HWMON_ROOT=/tmp/fake-hwmon ./scripts/sysread
 ```
 
+`tests/fake-hwmon` does exactly that for eight shapes of hardware, including a
+Framework laptop whose single fan is reported by two drivers at once. It runs
+anywhere, with or without a checkout:
+
+```bash
+./tests/fake-hwmon
+curl -fsSL https://raw.githubusercontent.com/andreireanu/omarchy-minimal-monitor/main/tests/fake-hwmon | bash
+```
+
 ## A note on reloading
 
 Editing an installed plugin's QML is not picked up by `omarchy plugin

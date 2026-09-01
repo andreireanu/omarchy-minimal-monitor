@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Run the collector against invented /sys/class/hwmon trees, so shapes of
+# hardware nobody has to hand can still be checked.
+#
+# From a clone:   ./tests/fake-hwmon
+# From anywhere:  curl -fsSL https://raw.githubusercontent.com/andreireanu/omarchy-minimal-monitor/main/tests/fake-hwmon | bash
+set -u
+
+# Prefer the copy in this checkout, else the installed plugin, else fetch one.
+id="io.github.andreireanu.minimal-monitor"
+for candidate in \
+  "$(dirname "$0")/../scripts/sysread" \
+  "./scripts/sysread" \
+  "$HOME/.config/omarchy/plugins/$id/scripts/sysread"
+do
+  if [ -x "$candidate" ]; then reader="$candidate"; break; fi
+done
+
+if [ -z "${reader:-}" ]; then
+  reader=$(mktemp)
+  curl -fsSL -o "$reader" \
+    "https://raw.githubusercontent.com/andreireanu/omarchy-minimal-monitor/main/scripts/sysread" || {
+      echo "could not find or fetch scripts/sysread"; exit 1; }
+  chmod +x "$reader"
+fi
+
+echo "reader: $reader"
+echo
+
+root=$(mktemp -d)
+trap 'rm -rf "$root"' EXIT
+
+chip() {  # chip <tree> <hwmonN> <name>
+  mkdir -p "$root/$1/$2"
+  printf '%s\n' "$3" > "$root/$1/$2/name"
+}
+fan() {   # fan <tree> <hwmonN> <index> <rpm>
+  printf '%s\n' "$4" > "$root/$1/$2/fan$3_input"
+}
+temp() {  # temp <tree> <hwmonN> <millidegrees>
+  printf '%s\n' "$3" > "$root/$1/$2/temp1_input"
+}
+
+# One fan, reported by both the ACPI view and the embedded controller. This is
+# what a Framework laptop looks like, and the case the dedup exists for.
+chip framework hwmon1 acpi_fan; fan framework hwmon1 1 2082
+chip framework hwmon7 cros_ec;  fan framework hwmon7 1 2082
+
+# The ACPI view on its own must survive - plenty of machines have only this.
+chip acpi-only hwmon1 acpi_fan; fan acpi-only hwmon1 1 1900
+
+# A GPU fan is a different fan and must never be suppressed.
+chip acpi-gpu hwmon1 acpi_fan; fan acpi-gpu hwmon1 1 1900
+chip acpi-gpu hwmon2 amdgpu;   fan acpi-gpu hwmon2 1 1200
+
+# The controller is present but reports no fan, so it cannot stand in for one.
+chip ec-no-fan hwmon1 acpi_fan; fan  ec-no-fan hwmon1 1 1900
+chip ec-no-fan hwmon7 cros_ec;  temp ec-no-fan hwmon7 45000
+
+# A desktop super-I/O chip with four fans, alongside the ACPI view.
+chip desktop hwmon1 acpi_fan; fan desktop hwmon1 1 900
+chip desktop hwmon3 nct6798
+for i in 1 2 3 4; do fan desktop hwmon3 $i $((1000 + i * 100)); done
+
+# A laptop with two ordinary fans, one of them resting.
+chip two-fans hwmon6 hp; fan two-fans hwmon6 1 2880; fan two-fans hwmon6 2 0
+
+# Nothing at all.
+mkdir -p "$root/fanless/hwmon0"; printf 'coretemp\n' > "$root/fanless/hwmon0/name"
+temp fanless hwmon0 55000
+
+mkdir -p "$root/empty"
+
+count() {
+  MONITOR_HWMON_ROOT="$root/$1" "$reader" \
+    | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["fans"]))'
+}
+
+fail=0
+check() {  # check <tree> <expected> <why>
+  local got
+  got=$(count "$1")
+  if [ "$got" = "$2" ]; then
+    printf '  ok    %-11s %s fan(s)   %s\n' "$1" "$got" "$3"
+  else
+    printf '  FAIL  %-11s expected %s, got %s   %s\n' "$1" "$2" "$got" "$3"
+    fail=1
+  fi
+}
+
+check framework 1 "one fan seen twice is reported once"
+check acpi-only 1 "the ACPI view alone is kept"
+check acpi-gpu  2 "a GPU fan is never suppressed"
+check ec-no-fan 1 "a controller with no fan suppresses nothing"
+check desktop   5 "super-I/O fans are untouched"
+check two-fans  2 "a resting fan still counts"
+check fanless   0 "no fans means none drawn"
+check empty     0 "an empty tree is not an error"
+
+echo
+if [ "$fail" -eq 0 ]; then echo "all checks passed"; else echo "THERE ARE FAILURES"; fi
+exit $fail
