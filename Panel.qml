@@ -13,6 +13,8 @@ Panel {
   property var anchorItem: null
   property var hostWidget: null
 
+  readonly property var w: hostWidget
+
   readonly property var rows:
     Model.rows(hostWidget ? hostWidget.reading : Model.EMPTY)
 
@@ -66,31 +68,58 @@ Panel {
           font.pixelSize: Style.font.body
         }
 
+        // One line per reading, laid out like the hover tooltip, with a tick
+        // that decides whether it also appears in the bar. Unticking only
+        // takes it off the bar; the reading stays here.
+        // One line per reading, laid out like the hover tooltip, with a tick
+        // that decides whether it also appears in the bar. Unticking only
+        // takes it off the bar; the reading stays here.
+        //
+        // The click target is the delegate itself: a MouseArea placed inside a
+        // RowLayout would be laid out as another column and squeeze the text.
         Repeater {
           model: root.rows
 
-          delegate: RowLayout {
+          delegate: MouseArea {
+            id: readingRow
             required property var modelData
-            width: content.width
-            spacing: Style.space(12)
 
-            Text {
-              Layout.fillWidth: true
-              text: modelData.label
-              elide: Text.ElideRight
-              color: root.barForeground
-              opacity: 0.7
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.body
+            width: content.width
+            implicitHeight: line.implicitHeight
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+              if (root.w) root.w.toggleMetric(modelData.key)
             }
 
-            Text {
-              text: modelData.value
-              color: root.barForeground
-              opacity: modelData.dim ? 0.5 : 1.0
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.body
-              font.bold: !modelData.dim
+            readonly property bool shown:
+              root.w ? root.w.metricShown(modelData.key) : true
+
+            RowLayout {
+              id: line
+              anchors.fill: parent
+              spacing: Style.space(8)
+
+              Rectangle {
+                Layout.preferredWidth: Style.space(13)
+                Layout.preferredHeight: Style.space(13)
+                radius: Style.space(3)
+                color: readingRow.shown ? root.barForeground : "transparent"
+                border.width: 1
+                border.color: root.barForeground
+                opacity: readingRow.shown ? 1.0 : 0.45
+              }
+
+              Text {
+                Layout.fillWidth: true
+                text: readingRow.modelData.label + ": " + readingRow.modelData.value
+                elide: Text.ElideRight
+                color: root.barForeground
+                opacity: readingRow.modelData.dim
+                  ? 0.5
+                  : (readingRow.shown ? 1.0 : 0.55)
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.body
+              }
             }
           }
         }

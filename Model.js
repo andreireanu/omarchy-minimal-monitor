@@ -50,6 +50,27 @@ function parse(line) {
   }
 }
 
+// Settings arrive from shell.json as whatever JSON held, and a hand-edited
+// file may hold the string "false", which is truthy in JavaScript.
+function truthy(value) {
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") return value !== 0
+  if (typeof value === "string") {
+    var v = value.trim().toLowerCase()
+    return !(v === "" || v === "false" || v === "0" || v === "no" || v === "off")
+  }
+  return !!value
+}
+
+// A fan is drawn unless its id was ticked off. `hiddenFans` is whatever
+// shell.json held, so treat anything that is not a list as "hide nothing".
+function fanShown(fan, show) {
+  if (!show || show.fans === false) return false
+  var hidden = show.hiddenFans
+  if (!Array.isArray(hidden)) return true
+  return hidden.indexOf(fan.id) === -1
+}
+
 function numberOrNull(value) {
   return (typeof value === "number" && isFinite(value)) ? value : null
 }
@@ -74,10 +95,10 @@ function barText(reading, show) {
     parts.push({ kind: "temp", text: icon("temp", reading.temp + "°C", gap) })
   if (show.mem && reading.mem !== null)
     parts.push({ kind: "mem", text: icon("mem", reading.mem + "%", gap) })
-  if (show.fans) {
-    for (var i = 0; i < reading.fans.length; i++)
-      parts.push({ kind: "fan", text: icon("fan", reading.fans[i].rpm
-        + (show.rpmUnit ? " RPM" : ""), gap) })
+  for (var i = 0; i < reading.fans.length; i++) {
+    if (!fanShown(reading.fans[i], show)) continue
+    parts.push({ kind: "fan", text: icon("fan", reading.fans[i].rpm
+      + (show.rpmUnit ? " RPM" : ""), gap) })
   }
 
   if (parts.length === 0) return icon("cpu", "n/a", gap)
@@ -116,6 +137,7 @@ function candidates(reading, show) {
       temp: show.temp && step.temp,
       mem: show.mem && step.mem,
       fans: show.fans && step.fans,
+      hiddenFans: show.hiddenFans,
       rpmUnit: show.rpmUnit && step.rpmUnit,
       iconGap: show.iconGap,
       metricGap: show.metricGap
@@ -128,18 +150,21 @@ function candidates(reading, show) {
   return out
 }
 
+// Every reading the machine offers, whether or not it is shown in the bar.
+// `key` names the setting that decides that, so a row can carry its own tick.
 function rows(reading) {
   if (!reading) return []
   var out = []
   if (reading.cpu !== null)
-    out.push({ label: "CPU", value: reading.cpu + " %", dim: false })
+    out.push({ label: "CPU", value: reading.cpu + " %", dim: false, key: "showCpu" })
   if (reading.temp !== null)
-    out.push({ label: "Temperature", value: reading.temp + " °C", dim: false })
+    out.push({ label: "Temperature", value: reading.temp + " °C", dim: false, key: "showTemp" })
   if (reading.mem !== null)
-    out.push({ label: "Memory", value: reading.mem + " %", dim: false })
+    out.push({ label: "Memory", value: reading.mem + " %", dim: false, key: "showMem" })
   for (var i = 0; i < reading.fans.length; i++) {
     var fan = reading.fans[i]
     out.push({
+      key: "fan:" + fan.id,
       label: fan.label,
       // A stopped fan is worth flagging, not hiding.
       value: fan.rpm === 0 ? "stopped" : fan.rpm + " RPM",
