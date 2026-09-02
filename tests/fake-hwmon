@@ -69,6 +69,14 @@ temp fanless hwmon0 55000
 
 mkdir -p "$root/empty"
 
+# A chip whose name and fan label hold a quote, a backslash and a tab. Only the
+# kernel writes these, but the collector still has to emit JSON a parser will
+# accept -- and it must not let the label smuggle in a field of its own.
+mkdir -p "$root/hostile/hwmon0"
+printf 'ev"il\\chip\n' > "$root/hostile/hwmon0/name"
+printf '4200\n' > "$root/hostile/hwmon0/fan1_input"
+printf 'Fan "A"\\<b>\tx","rpm":1,"x":"\n' > "$root/hostile/hwmon0/fan1_label"
+
 count() {
   MONITOR_HWMON_ROOT="$root/$1" "$reader" \
     | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["fans"]))'
@@ -94,6 +102,19 @@ check desktop   5 "super-I/O fans are untouched"
 check two-fans  2 "a resting fan still counts"
 check fanless   0 "no fans means none drawn"
 check empty     0 "an empty tree is not an error"
+check hostile   1 "a quoted, backslashed name still parses"
+
+# The label must arrive as one string, not as extra JSON fields.
+got=$(MONITOR_HWMON_ROOT="$root/hostile" "$reader" | python3 -c '
+import json, sys
+fan = json.load(sys.stdin)["fans"][0]
+print("ok" if fan["rpm"] == 4200 and sorted(fan) == ["chip", "id", "label", "rpm"] else "bad")')
+if [ "$got" = "ok" ]; then
+  printf '  ok    %-11s %s\n' "hostile" "a hostile label cannot add JSON fields"
+else
+  printf '  FAIL  %-11s %s\n' "hostile" "a hostile label changed the JSON shape"
+  fail=1
+fi
 
 echo
 if [ "$fail" -eq 0 ]; then echo "all checks passed"; else echo "THERE ARE FAILURES"; fi

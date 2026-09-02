@@ -81,6 +81,18 @@ cpu_temp() {
   else echo "null"; fi
 }
 
+# hwmon names and labels are strings from the kernel, so they go into the JSON
+# through a real escaper rather than straight into printf. Backslash first, then
+# the quote, then control characters are dropped and the result is capped: a
+# label is a short word, and nothing downstream should have to parse a novel.
+json_string() {
+  local s="$1"
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=$(printf '%s' "$s" | tr -d '\000-\037\177')
+  printf '%s' "${s:0:64}"
+}
+
 # True when the embedded controller reports a fan of its own.
 ec_reports_fan() {
   local chip input
@@ -115,13 +127,16 @@ fans_json() {
 
       base=${input%_input}
       index=${base##*/fan}
+      # The glob is fan[0-9]*_input, so the middle can hold more than digits.
+      case "$index" in ''|*[!0-9]*) continue ;; esac
       label=$(cat "${base}_label" 2>/dev/null)
       [ -n "$label" ] || label="Fan $index"
 
       [ $first -eq 1 ] || printf ','
       first=0
       printf '{"id":"%s/fan%s","chip":"%s","label":"%s","rpm":%s}' \
-        "$name" "$index" "$name" "$label" "$rpm"
+        "$(json_string "$name")" "$index" "$(json_string "$name")" \
+        "$(json_string "$label")" "$rpm"
     done
   done
   printf ']'

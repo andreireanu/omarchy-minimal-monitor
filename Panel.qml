@@ -71,9 +71,6 @@ Panel {
         // One line per reading, laid out like the hover tooltip, with a tick
         // that decides whether it also appears in the bar. Unticking only
         // takes it off the bar; the reading stays here.
-        // One line per reading, laid out like the hover tooltip, with a tick
-        // that decides whether it also appears in the bar. Unticking only
-        // takes it off the bar; the reading stays here.
         //
         // The click target is the delegate itself: a MouseArea placed inside a
         // RowLayout would be laid out as another column and squeeze the text.
@@ -112,6 +109,9 @@ Panel {
               Text {
                 Layout.fillWidth: true
                 text: readingRow.modelData.label + ": " + readingRow.modelData.value
+                // A fan label is a kernel-supplied string. AutoText would let
+                // one that looks like markup be rendered as markup.
+                textFormat: Text.PlainText
                 elide: Text.ElideRight
                 color: root.barForeground
                 opacity: readingRow.modelData.dim

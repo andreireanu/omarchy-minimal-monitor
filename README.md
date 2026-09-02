@@ -98,8 +98,9 @@ you do not have — a fanless laptop, or a desktop with four fans:
 MONITOR_HWMON_ROOT=/tmp/fake-hwmon ./scripts/sysread
 ```
 
-`tests/fake-hwmon` does exactly that for eight shapes of hardware, including a
-Framework laptop whose single fan is reported by two drivers at once:
+`tests/fake-hwmon` does exactly that for nine shapes of hardware, including a
+Framework laptop whose single fan is reported by two drivers at once, and a
+chip whose name and fan label hold a quote, a backslash and a tab:
 
 ```bash
 ./tests/fake-hwmon
@@ -107,6 +108,14 @@ Framework laptop whose single fan is reported by two drivers at once:
 
 It looks for the collector in this checkout, then in an installed plugin, so it
 can also be run from a clone on a machine where the plugin is already set up.
+
+`tests/model-tests.js` checks the other half: that `Model.js` drops a fan
+without a usable id or speed, and reduces every label to one short plain line
+before anything renders it. It needs Node, which the plugin itself does not:
+
+```bash
+node tests/model-tests.js
+```
 
 ## A note on reloading
 

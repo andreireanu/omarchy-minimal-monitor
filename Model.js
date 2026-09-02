@@ -43,11 +43,48 @@ function parse(line) {
       cpu: numberOrNull(doc.cpu),
       temp: numberOrNull(doc.temp),
       mem: numberOrNull(doc.mem),
-      fans: Array.isArray(doc.fans) ? doc.fans : []
+      fans: sanitizeFans(doc.fans)
     }
   } catch (e) {
     return EMPTY
   }
+}
+
+// The fan list comes from a shell script reading kernel-supplied strings, so
+// nothing in it is trusted on sight. A fan is kept only if it has a usable id
+// and rpm; its text is forced to a plain, single-line, bounded string. Anything
+// that fails is dropped rather than repaired, so a broken chip cannot rename
+// another one.
+function sanitizeFans(list) {
+  if (!Array.isArray(list)) return []
+  var out = []
+  for (var i = 0; i < list.length && out.length < 32; i++) {
+    var fan = list[i]
+    if (!fan || typeof fan !== "object") continue
+    var id = plainString(fan.id)
+    var rpm = numberOrNull(fan.rpm)
+    if (id === "" || rpm === null || rpm < 0) continue
+    var label = plainString(fan.label)
+    out.push({
+      id: id,
+      chip: plainString(fan.chip),
+      label: label === "" ? "Fan" : label,
+      rpm: rpm
+    })
+  }
+  return out
+}
+
+// One line, no control characters, no markup a rich-text sink could act on,
+// and short enough to belong in a bar.
+function plainString(value) {
+  if (typeof value !== "string") return ""
+  return value
+    .replace(/[\x00-\x1f\x7f]/g, " ")
+    .replace(/[<>&]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 64)
 }
 
 // Settings arrive from shell.json as whatever JSON held, and a hand-edited
